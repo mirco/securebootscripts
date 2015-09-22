@@ -1,21 +1,26 @@
 #! /usr/bin/bash -eu
 
-function join { local IFS="-"; echo "$*"; }
-
 MACHINEID="$(< /etc/machine-id)"
 CMDLINEFILE="/etc/kernel/cmdline"
 KVER="$1"
 EFISTUBFILE="/usr/lib/systemd/boot/efi/linuxx64.efi.stub"
 TMPDIR="/tmp/"
 OUTPUTDIR="$2"
-OS="$(cat /etc/os-release |grep ID=|cut -d= -f2)"
-VERSION="$(cat /etc/os-release |grep VERSION_ID=|cut -d= -f2)"
-VARIANT="$(cat /etc/os-release |grep VARIANT_ID=| cut -d= -f2)"
-OUTPUTFILE="$(join $OS $VERSION $VARIANT)-$(uname -m)-$KVER.efi"
+OS="$(grep ID= < /etc/os-release |cut -d= -f2)"
+VERSION="$(grep VERSION_ID= < /etc/os-release |cut -d= -f2)"
+VARIANT="$(grep VARIANT_ID= < /etc/os-release| cut -d= -f2)"
+ID="$OS"
+if [ -n "$VERSION" ]; then
+        ID+="-$VERSION"
+fi
+if [ -n "$VARIANT" ]; then
+        ID+="-$VARIANT"
+fi
+OUTPUTFILE="$ID-$(uname -m)-$KVER.efi"
 KERNELFILE="/boot/$MACHINEID/$KVER/linux"
 INITRDFILE="/boot/$MACHINEID/$KVER/initrd"
 INITRDDECODEDFILE="$TMPDIR/initrd-$KVER.img"
-INITRDUCODEFILE="/boot/intel-ucode.img"
+#INITRDUCODEFILE="/boot/intel-ucode.img"
 INITRDINTELFILE="$TMPDIR/initrd-$KVER-intel.img"
 OSOSRELEASEFILE="/etc/os-release"
 OSRELEASEFILE="$TMPDIR/os-release-$KVER"
