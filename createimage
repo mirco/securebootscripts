@@ -1,0 +1,46 @@
+#! /usr/bin/bash -eu
+
+function join { local IFS="-"; echo "$*"; }
+
+MACHINEID="$(< /etc/machine-id)"
+CMDLINEFILE="/etc/kernel/cmdline"
+KVER="$1"
+EFISTUBFILE="/usr/lib/systemd/boot/efi/linuxx64.efi.stub"
+TMPDIR="/tmp/"
+OUTPUTDIR="$2"
+OS="$(cat /etc/os-release |grep ID=|cut -d= -f2)"
+VERSION="$(cat /etc/os-release |grep VERSION_ID=|cut -d= -f2)"
+VARIANT="$(cat /etc/os-release |grep VARIANT_ID=| cut -d= -f2)"
+OUTPUTFILE="$(join $OS $VERSION $VARIANT)-$(uname -m)-$KVER.efi"
+KERNELFILE="/boot/$MACHINEID/$KVER/linux"
+INITRDFILE="/boot/$MACHINEID/$KVER/initrd"
+INITRDDECODEDFILE="$TMPDIR/initrd-$KVER.img"
+INITRDUCODEFILE="/boot/intel-ucode.img"
+INITRDINTELFILE="$TMPDIR/initrd-$KVER-intel.img"
+OSOSRELEASEFILE="/etc/os-release"
+OSRELEASEFILE="$TMPDIR/os-release-$KVER"
+SPLASHFILE="/usr/share/systemd/bootctl/splash-$OS.bmp"
+
+cat "$OSOSRELEASEFILE" > "$OSRELEASEFILE"
+echo "VERSION_ID=$KVER" >> "$OSRELEASEFILE"
+
+#lz4 -d "$INITRDFILE" "$INITRDDECODEDFILE"
+#cat "$INITRDUCODEFILE" "$INITRDDECODEDFILE" > "$INITRDINTELFILE"
+
+objcopy \
+	--add-section .osrel="$OSRELEASEFILE"   --change-section-vma .osrel=0x20000 \
+	--add-section .cmdline="$CMDLINEFILE"   --change-section-vma .cmdline=0x30000 \
+	--add-section .splash="$SPLASHFILE"	--change-section-vma .splash=0x40000 \
+	--add-section .linux="$KERNELFILE"      --change-section-vma .linux=0x2000000 \
+	--add-section .initrd="$INITRDFILE" 	--change-section-vma .initrd=0x3000000 \
+	"$EFISTUBFILE" "$TMPDIR/$OUTPUTFILE"
+
+rm -f "$OSRELEASEFILE"
+rm -f "$INITRDDECODEDFILE"
+rm -f "$INITRDINTELFILE"
+
+DBKEYFILE="/etc/pki/secureboot/db.key"
+DBCRTFILE="/etc/pki/secureboot/db.crt"
+sbsign --key "$DBKEYFILE" --cert "$DBCRTFILE" --output "$OUTPUTDIR/$OUTPUTFILE" "$TMPDIR/$OUTPUTFILE"
+
+rm -f "$TMPDIR/$OUTPUTFILE"
