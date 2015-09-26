@@ -1,4 +1,5 @@
-#! /usr/bin/bash -eu
+#! /usr/bin/bash -euf
+set -o pipefail
 
 MACHINEID="$(< /etc/machine-id)"
 CMDLINEFILE="/etc/kernel/cmdline"
@@ -7,8 +8,8 @@ EFISTUBFILE="/usr/lib/systemd/boot/efi/linuxx64.efi.stub"
 TMPDIR="/tmp/"
 OUTPUTDIR="$2"
 OS="$(grep ID= < /etc/os-release |cut -d= -f2)"
-VERSION="$(grep VERSION_ID= < /etc/os-release |cut -d= -f2)"
-VARIANT="$(grep VARIANT_ID= < /etc/os-release| cut -d= -f2)"
+VERSION="$(grep VERSION_ID= < /etc/os-release || true|cut -d= -f2)"
+VARIANT="$(grep VARIANT_ID= < /etc/os-release || true| cut -d= -f2)"
 ID="$OS"
 if [ -n "$VERSION" ]; then
         ID+="-$VERSION"
@@ -16,6 +17,8 @@ fi
 if [ -n "$VARIANT" ]; then
         ID+="-$VARIANT"
 fi
+echo "building $ID-$(uname -m)-$KVER image"
+
 OUTPUTFILE="$ID-$(uname -m)-$KVER.efi"
 KERNELFILE="/boot/$MACHINEID/$KVER/linux"
 INITRDFILE="/boot/$MACHINEID/$KVER/initrd"
