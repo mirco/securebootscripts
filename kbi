@@ -1,0 +1,45 @@
+#! /usr/bin/bash -euf
+set -o pipefail
+
+# build and install a signed kernel and the kdbus out of tree module.
+# the sources have to reside at $SRCDIR/linux and $SRCDIR/kdbus
+
+if [[ "$#" -ne 1 ]]; then
+	echo "Needs exactly one argument"
+	exit 1
+fi
+
+SRCDIR="$(realpath $1)"
+KSRCDIR="$SRCDIR/linux"
+KDBUSSRCDIR="$SRCDIR/kdbus"
+
+BUILDDIR="$SRCDIR/build"
+KBUILDDIR="$BUILDDIR/linux"
+
+PRIVKEY="$KBUILDDIR/certs/signing_key.pem"
+CERT="$KBUILDDIR/certs/signing_key.x509"
+
+sudo true
+
+cd "$KSRCDIR" || exit
+git remote update
+# use rebase in case we aren't on a master branch
+git rebase origin/master
+make O="$KBUILDDIR" -j4
+KVER=$(cat "$KBUILDDIR/include/config/kernel.release" )
+sudo make O="$KBUILDDIR" modules_install
+
+cd "$KDBUSSRCDIR" || exit
+git remote update
+git rebase origin/master
+make KERNELVER="$KVER" module -j4 
+"$KBUILDDIR/scripts/sign-file" sha256 "$PRIVKEY" "$CERT" ipc/kdbus/kdbus.ko
+sudo make KERNELVER="$KVER" install
+
+sudo kernel-install add "$KVER" "$KBUILDDIR/arch/$(uname -m)/boot/bzImage"
+
+rm "$PRIVKEY" "$CERT"
+
+sudo rm     "/boot/loader/entries/$(cat /etc/machine-id)-$KVER.conf"
+sudo rm  -r "/boot/$(cat /etc/machine-id)/$KVER/"
+
